@@ -165,6 +165,119 @@ def format_chapter_info(chapter_info: dict) -> str:
         summary=chapter_info.get('chapter_summary', '未提供')
     )
 
+
+def generate_chapter_scene_plan(
+    interface_format: str,
+    api_key: str,
+    base_url: str,
+    model_name: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: int,
+    **context
+) -> str:
+    """正文生成前先形成可执行的场景顺序和连续性约束。"""
+    llm_adapter = create_llm_adapter(
+        interface_format=interface_format,
+        base_url=base_url,
+        model_name=model_name,
+        api_key=api_key,
+        temperature=min(temperature, 0.4),
+        # 思考型模型可能把输出预算用于内部推理；沿用用户配置的上限，
+        # 避免 final content 尚未生成就耗尽 max_tokens。
+        max_tokens=max(1, max_tokens),
+        timeout=timeout
+    )
+    prompt = prompt_definitions.chapter_scene_plan_prompt.format(**context)
+    chapter_label = context.get("novel_number", "未知")
+    try:
+        plan = invoke_with_cleaning(llm_adapter, prompt)
+    except Exception as e:
+        logging.exception("Scene plan generation failed for chapter %s", chapter_label)
+        raise RuntimeError(f"第{chapter_label}章场景计划生成失败：{e}") from e
+
+    if not plan.strip():
+        raise RuntimeError(f"第{chapter_label}章场景计划为空，无法继续生成正文。")
+
+    required_sections = (
+        "1. 本章起点",
+        "2. 场景顺序",
+        "3. 本章转折",
+        "4. 本章终点",
+        "5. 必须保持的事实",
+        "6. 连续性风险",
+    )
+    section_heading = re.compile(
+        r"(?m)^\s*(?:[#>*\-]\s*)?(\d+)[.、．:：]\s*"
+        r"(本章起点|场景顺序|本章转折|本章终点|必须保持的事实|连续性风险)\s*[：:]?"
+    )
+
+    def find_missing_sections(text: str) -> list:
+        # 检查标题、内容和句子是否收尾；“无”是有效的明确回答。
+        matches = list(section_heading.finditer(text))
+        found = {}
+        for index, match in enumerate(matches):
+            title = f"{match.group(1)}. {match.group(2)}"
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+            body = text[match.end():end].strip()
+            is_explicitly_empty = body.rstrip(" \t\r\n。！？；") == "无"
+            has_sentence_ending = body.rstrip().endswith(
+                ("。", "！", "？", "；", "…", "”", "’", "）", ")")
+            )
+            if body and (is_explicitly_empty or has_sentence_ending):
+                found[title] = body
+        return [section for section in required_sections if section not in found]
+
+    missing_sections = find_missing_sections(plan)
+    for repair_round in range(1, 3):
+        if not missing_sections:
+            break
+        logging.warning(
+            "Incomplete scene plan for chapter %s; requesting missing sections only (round %s): %s",
+            chapter_label, repair_round, "、".join(missing_sections)
+        )
+        # 仅传入缺失项、当前计划和本章核心要求，避免重复发送完整架构与历史上下文。
+        missing_titles = "\n".join(f"- {section}" for section in missing_sections)
+        repair_prompt = f"""你是小说场景计划编辑。请为第{chapter_label}章《{context.get('chapter_title', '')}》补齐计划中缺失的部分。
+
+【本章目录简述】
+{context.get('chapter_summary', '未提供')}
+【本章定位与核心作用】
+{context.get('chapter_role', '未提供')}；{context.get('chapter_purpose', '未提供')}
+【必须遵守的已知事实】
+{context.get('previous_chapter_excerpt', '无前章内容')}
+{context.get('character_state', '未提供角色状态')}
+
+【已有计划，仅供衔接，不要重写】
+{plan}
+
+【只输出以下缺失部分】
+{missing_titles}
+
+每部分至少写一句具体内容；无相关内容时明确写“无”。保持与已有计划一致，不得引入无依据的重大事实，不要重复输出已有部分。"""
+        try:
+            repaired_sections = invoke_with_cleaning(llm_adapter, repair_prompt)
+            if repaired_sections.strip():
+                plan = plan.rstrip() + "\n" + repaired_sections.strip()
+        except Exception as e:
+            logging.warning(
+                "Scene-plan completion round %s failed for chapter %s: %s",
+                repair_round, chapter_label, e
+            )
+        missing_sections = find_missing_sections(plan)
+
+    if missing_sections:
+        logging.error(
+            "Scene plan for chapter %s remains incomplete after repair; missing sections: %s",
+            chapter_label, "、".join(missing_sections)
+        )
+        raise RuntimeError(
+            f"第{chapter_label}章场景计划未达要求，缺少：{'、'.join(missing_sections)}。"
+            "请查看输出日志后重试。"
+        )
+    logging.info("Chapter scene plan generated for chapter %s", context.get("novel_number"))
+    return plan
+
 def parse_search_keywords(response_text: str) -> list:
     """解析新版关键词格式（示例输入：'科技公司·数据泄露\n地下实验室·基因编辑'）"""
     return [
@@ -348,6 +461,34 @@ def build_chapter_prompt(
 
     # 第一章特殊处理
     if novel_number == 1:
+        scene_plan = generate_chapter_scene_plan(
+            interface_format=interface_format,
+            api_key=api_key,
+            base_url=base_url,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            novel_number=novel_number,
+            chapter_title=chapter_title,
+            novel_architecture=novel_architecture_text,
+            global_summary="（首章，无前文摘要）",
+            short_summary="（首章，无近章摘要）",
+            previous_chapter_excerpt="（首章，无前章）",
+            character_state=character_state_text or "（未提供角色状态）",
+            chapter_role=chapter_role,
+            chapter_purpose=chapter_purpose,
+            suspense_level=suspense_level,
+            foreshadowing=foreshadowing,
+            plot_twist_level=plot_twist_level,
+            chapter_summary=chapter_summary,
+            characters_involved=characters_involved or "未指定",
+            key_items=key_items or "未指定",
+            scene_location=scene_location or "未指定",
+            time_constraint=time_constraint or "未指定",
+            user_guidance=user_guidance or "无特殊指导",
+            next_chapter_summary=next_chapter_info.get("chapter_summary", "首章结尾为后续章节留下自然承接点。")
+        )
         return prompt_definitions.first_chapter_draft_prompt.format(
             novel_number=novel_number,
             word_number=word_number,
@@ -363,7 +504,8 @@ def build_chapter_prompt(
             scene_location=scene_location,
             time_constraint=time_constraint,
             user_guidance=user_guidance,
-            novel_setting=novel_architecture_text
+            novel_setting=novel_architecture_text,
+            scene_plan=scene_plan
         )
 
     # 获取前文内容和摘要
@@ -492,6 +634,35 @@ def build_chapter_prompt(
         logging.error(f"知识处理流程异常：{str(e)}")
         filtered_context = "（知识库处理失败）"
 
+    scene_plan = generate_chapter_scene_plan(
+        interface_format=interface_format,
+        api_key=api_key,
+        base_url=base_url,
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        novel_number=novel_number,
+        chapter_title=chapter_title,
+        novel_architecture=novel_architecture_text,
+        global_summary=global_summary_text or "（暂无全局摘要）",
+        short_summary=short_summary,
+        previous_chapter_excerpt=previous_excerpt or "（无可用前章结尾）",
+        character_state=character_state_text or "（暂无角色状态）",
+        chapter_role=chapter_role,
+        chapter_purpose=chapter_purpose,
+        suspense_level=suspense_level,
+        foreshadowing=foreshadowing,
+        plot_twist_level=plot_twist_level,
+        chapter_summary=chapter_summary,
+        characters_involved=characters_involved or "未指定",
+        key_items=key_items or "未指定",
+        scene_location=scene_location or "未指定",
+        time_constraint=time_constraint or "未指定",
+        user_guidance=user_guidance or "无特殊指导",
+        next_chapter_summary=next_chapter_info.get("chapter_summary", "（本书没有下一章目录，不应额外展开后续章节）")
+    )
+
     # 返回最终提示词
     return prompt_definitions.next_chapter_draft_prompt.format(
         user_guidance=user_guidance if user_guidance else "无特殊指导",
@@ -499,6 +670,7 @@ def build_chapter_prompt(
         previous_chapter_excerpt=previous_excerpt,
         character_state=character_state_text,
         short_summary=short_summary,
+        scene_plan=scene_plan,
         novel_number=novel_number,
         chapter_title=chapter_title,
         chapter_role=chapter_role,

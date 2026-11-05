@@ -9,7 +9,7 @@ langchain==0.3.27
 langchain-chroma==0.2.5
 langchain-openai==0.3.32
 nltk==3.9.1
-numpy==2.3.2
+numpy==2.2.6
 openai==1.106.1
 protobuf==5.29.5
 requests==2.32.5

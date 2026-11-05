@@ -1,5 +1,7 @@
 # 📖 自动小说生成工具
 
+新增本地 HTML 网页工作台：双击 `启动网页.bat` 或运行 `.venv\Scripts\python.exe run_web.py`，访问 <http://127.0.0.1:8765>。已接入大纲、目录、草稿、定稿、审校、扩写与批量创作，并提供完整模型预设、任务模型、Embedding、创作默认值、代理、WebDAV 和知识库设置。设置继续兼容原 `config.json`。安装及使用详见 [网页工作台说明](docs/web-workbench.md)。
+
 中文文档 | [English](./README.md) | [日本語](./README_ja.md) | [Français](./README_fr-FR.md) | [Sawcuengh](./README_sawcuengh.md)
 
 >- ~~当前没有什么精力维护该项目，本身该项目并无任何收益，以及临近毕业，有很多内容要忙，如果后面有时间的话，再考虑基于更新的技术去重构吧。——2025/9/24~~

@@ -92,6 +92,14 @@ class OpenAIAdapter(BaseLLMAdapter):
         if not response:
             logging.warning("No response from OpenAIAdapter.")
             return ""
+        metadata = getattr(response, "response_metadata", {}) or {}
+        usage = getattr(response, "usage_metadata", None) or metadata.get("token_usage")
+        logging.info(
+            "[LLM] model=%s finish_reason=%s usage=%s",
+            self.model_name,
+            metadata.get("finish_reason", "unknown"),
+            usage if usage is not None else "unknown",
+        )
         return response.content
 
 class GeminiAdapter(BaseLLMAdapter):

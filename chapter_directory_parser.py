@@ -12,12 +12,12 @@ _ENGLISH_HEADER_PATTERN = re.compile(
 )
 
 _FIELD_ALIASES = (
-    ("chapter_role", (r"本章定位", r"章节定位", r"chapter\s+role")),
-    ("chapter_purpose", (r"核心作用", r"core\s+function", r"core\s+purpose")),
-    ("suspense_level", (r"悬念密度", r"suspense\s+density")),
-    ("foreshadowing", (r"伏笔操作", r"伏笔设计", r"foreshadowing(?:\s+design)?")),
-    ("plot_twist_level", (r"认知颠覆(?:强度)?", r"转折程度", r"cognitive\s+subversion", r"twist\s+level")),
-    ("chapter_summary", (r"本章简述", r"章节简述", r"chapter\s+summary")),
+    ("chapter_role", (r"本章定位", r"章节定位", r"定位", r"chapter\s+role")),
+    ("chapter_purpose", (r"核心作用", r"作用", r"core\s+function", r"core\s+purpose")),
+    ("suspense_level", (r"悬念密度", r"悬念", r"suspense\s+density")),
+    ("foreshadowing", (r"伏笔操作", r"伏笔设计", r"伏笔", r"foreshadowing(?:\s+design)?")),
+    ("plot_twist_level", (r"认知颠覆(?:强度)?", r"转折程度", r"颠覆", r"cognitive\s+subversion", r"twist\s+level")),
+    ("chapter_summary", (r"本章简述", r"章节简述", r"简述", r"chapter\s+summary")),
 )
 _FIELD_PATTERNS = [
     (

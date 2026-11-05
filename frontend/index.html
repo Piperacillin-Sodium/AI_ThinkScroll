@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b38">
+  <title>AI思卷</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <a class="brand" href="#architecture" aria-label="AI思卷首页"><span class="brand-mark">思</span><span>AI思卷<small>小说创作工作台</small></span></a>
+      <div class="sidebar-label">创作工作台</div>
+      <nav id="main-nav">
+        <button type="button" data-view="architecture"><span class="nav-number">01</span><span>生成大纲<small>搭建故事的骨架</small></span></button>
+        <button type="button" data-view="directory"><span class="nav-number">02</span><span>生成目录<small>铺开章节与节奏</small></span></button>
+        <button type="button" data-view="draft"><span class="nav-number">03</span><span>生成草稿<small>让每一章发生</small></span></button>
+        <button type="button" data-view="finalize"><span class="nav-number">04</span><span>定稿章节<small>审校正文与创作记忆</small></span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button type="button" class="settings-nav" data-view="settings"><span aria-hidden="true">⚙</span> 设置 <span class="soon-badge">模型与创作偏好</span></button>
+        <div class="connection"><span id="connection-dot" class="status-dot"></span><span id="connection-text">正在连接工作台…</span></div>
+        <p class="sidebar-note">灵感从这里开始，<br>故事由你掌舵。</p>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="project-area"><span class="eyebrow">当前小说</span><select id="project-select" aria-label="当前小说"><option value="">正在加载…</option></select><span id="project-path" class="project-path" title="小说保存目录"></span></div>
+        <div class="top-actions"><button type="button" id="new-project" class="button button-quiet">＋ 新建小说</button><button type="button" id="import-project" class="button button-quiet">打开目录</button><button type="button" id="job-history" class="button button-quiet" disabled>任务记录</button><button type="button" id="export-project" class="button button-outline" disabled>导出小说 <span aria-hidden="true">↗</span></button></div>
+      </header>
+      <main id="main-content" tabindex="-1"><div class="loading-state"><span class="spinner"></span>正在打开创作工作台…</div></main>
+      <section id="task-panel" class="task-panel" aria-label="生成任务" hidden>
+        <button type="button" id="task-toggle" class="task-summary" aria-expanded="false"><span class="task-status-icon" id="task-icon">◌</span><span id="task-title">当前任务</span><span id="task-stage"></span><span id="task-state" class="pill">等待中</span><span class="chevron">⌃</span></button>
+        <div id="task-details" class="task-details" hidden><div class="task-detail-header"><span id="task-hint">生成任务在后台运行，切换页签不会中断。</span><div><button type="button" id="task-result" class="button button-small button-primary" hidden>查看结果</button><button type="button" id="task-cancel" class="button button-small button-outline">停止任务</button></div></div><pre id="task-logs" aria-live="polite" aria-relevant="additions"></pre></div>
+      </section>
+      <footer class="workspace-footer"><span id="footer-project">本地创作 · 文件保存在你的电脑</span><span>Ctrl / ⌘ + S 保存当前内容</span></footer>
+    </div>
+  </div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="app-dialog"><div id="dialog-content"></div></dialog>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
